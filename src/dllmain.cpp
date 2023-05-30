@@ -179,7 +179,6 @@ matdash::cc::thiscall<void> DrawGridLayer_draw(gd::DrawGridLayer* self) {
     float lastX = 0.f;
     for(size_t i = startSample; i < endSample; i++) {
         sample_t currentSample = samples[i];
-        float x = xPosForTime(speeds, startSpeed, i / sampleRate - songOffset);
         int pixels = static_cast<int>(std::floor(currentSample.x * unitsToPixels / lineWidth));
         if(std::abs(currentSample.value) > std::abs(sample))
             sample = currentSample.value;
