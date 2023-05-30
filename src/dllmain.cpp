@@ -8,6 +8,8 @@
 #include "extensions2.h"
 #include <fmod.hpp>
 
+#include "config.hpp"
+
 #undef min
 #undef max
 
@@ -18,14 +20,15 @@
 
 using namespace cocos2d;
 
-static inline bool mhLoaded() { return GetModuleHandle(TEXT("hackpro.dll")); }
-
 static std::vector<float> samples;
+static float position = 0.f;
 
 matdash::cc::thiscall<bool> LevelEditorLayer_init(gd::LevelEditorLayer* self, gd::GJGameLevel* level) {
     std::string songPath = CCFileUtils::sharedFileUtils()->fullPathForFilename(level->getAudioFileName().c_str(), false);
     std::cout << "what if you wanted to edit " << level->m_sLevelName << std::endl
               << "but god said " << songPath << std::endl;
+
+    position = 0.f;
 
     FMOD::Sound* sound;
     const FMOD_MODE mode = FMOD_DEFAULT | FMOD_CREATESAMPLE | FMOD_OPENONLY;
@@ -119,22 +122,32 @@ float timeForXPos(CCArray* speedObjects, gd::Speed speed, float x) {
 matdash::cc::thiscall<void> DrawGridLayer_draw(gd::DrawGridLayer* self) {
     matdash::orig<&DrawGridLayer_draw>(self);
 
-    const float lineWidth = 4.f;
+    float lineWidth = static_cast<float>(waveform::config::lineWidth);
+    float verticalScale = waveform::config::verticalScale;
+    float offset = waveform::config::verticalOffset;
 
     auto director = CCDirector::sharedDirector();
     float localWinWidth = director->getWinSize().width / self->getParent()->getScaleX();
     float winWidthPixels = director->getOpenGLView()->getFrameSize().width;
     float unitsToPixels = winWidthPixels / localWinWidth;
 
-    float leftBound = std::floor(std::max(self->convertToNodeSpace(CCPoint{0.f, 0.f}).x, 0.f) * unitsToPixels / lineWidth) * lineWidth / unitsToPixels;
+    CCPoint pos = self->convertToNodeSpace(CCPoint{0.f, 0.f});
+    float leftBound = std::floor(std::max(pos.x, 0.f) * unitsToPixels / lineWidth) * lineWidth / unitsToPixels;
     float rightBound = std::ceil((leftBound + localWinWidth) * unitsToPixels / lineWidth + 3.f) * lineWidth / unitsToPixels;
+
+    if(waveform::config::lockToCamera)
+        position = pos.y;
+    float drawPos = position + offset;
 
     float startTime = timeForXPos(self->m_pSpeedObjects2, self->m_pEditor->m_pLevelSettings->m_speed, leftBound);
     float endTime = timeForXPos(self->m_pSpeedObjects2, self->m_pEditor->m_pLevelSettings->m_speed, rightBound);
     size_t startSample = std::clamp(static_cast<size_t>(startTime * 44100.f), 0u, samples.size());
     size_t endSample = std::clamp(static_cast<size_t>(endTime * 44100.f), 0u, samples.size());
 
-    ccDrawColor4B(31, 31, 31, 190);
+    float prevLineWidth;
+    glGetFloatv(GL_LINE_WIDTH, &prevLineWidth);
+
+    ccDrawColor4B(31, 31, 31, waveform::config::opacity);
     glLineWidth(lineWidth);
     float sample = 0.f;
     int lastPixels = 0;
@@ -147,12 +160,18 @@ matdash::cc::thiscall<void> DrawGridLayer_draw(gd::DrawGridLayer* self) {
         if(pixels == lastPixels)
             continue;
 
-        ccDrawLine(CCPoint{lastX, -sample * 200.f}, CCPoint{lastX, sample * 200.f});
+        ccDrawLine(CCPoint{lastX, -sample * verticalScale + drawPos}, CCPoint{lastX, sample * verticalScale + drawPos});
         sample = 0.f;
         lastPixels = pixels;
         lastX = std::floor(x * unitsToPixels) / unitsToPixels;
     }
+    glLineWidth(prevLineWidth);
     return {};
+}
+
+void waveform::addHooks() {
+    matdash::add_hook<&LevelEditorLayer_init>(gd::base + 0x15ee00);
+    matdash::add_hook<&DrawGridLayer_draw>(gd::base + 0x16ce90);
 }
 
 void mod_main(HMODULE hModule) {
@@ -160,8 +179,10 @@ void mod_main(HMODULE hModule) {
     auto console = new matdash::Console();
 #endif
 
-    matdash::add_hook<&LevelEditorLayer_init>(gd::base + 0x15ee00);
-    matdash::add_hook<&DrawGridLayer_draw>(gd::base + 0x16ce90);
+    waveform::config::loadConfig();
+    waveform::config::initMegahack();
+    if(waveform::config::enabled)
+        waveform::config::enableHooks();
 
 #ifdef CUSTOM_DEBUG
     std::string input;
