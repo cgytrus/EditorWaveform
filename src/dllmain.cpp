@@ -20,7 +20,26 @@
 
 using namespace cocos2d;
 
-static std::vector<float> samples;
+float xPosForTime(CCArray* speedObjects, gd::Speed speed, float time) {
+    float x;
+    __asm movss xmm0, time;
+    reinterpret_cast<void(__fastcall*)(CCArray*, gd::Speed)>(gd::base + 0x18acd0)(speedObjects, speed);
+    __asm movss x, xmm0;
+    return x;
+}
+float timeForXPos(CCArray* speedObjects, gd::Speed speed, float x) {
+    float time;
+    __asm movss xmm0, x;
+    reinterpret_cast<void(__fastcall*)(CCArray*, gd::Speed)>(gd::base + 0x18ae70)(speedObjects, speed);
+    __asm movss time, xmm0;
+    return time;
+}
+
+struct sample_t {
+    float value;
+    float x;
+};
+static std::vector<sample_t> samples;
 static float sampleRate = 0.f;
 static float position = 0.f;
 
@@ -100,27 +119,26 @@ matdash::cc::thiscall<bool> LevelEditorLayer_init(gd::LevelEditorLayer* self, gd
             }
         }
         sample /= channels;
-        samples.push_back(sample);
+        samples.push_back({sample, 0.f});
     }
     delete[] data;
 
     return matdash::orig<&LevelEditorLayer_init>(self, level);
 }
 
-float xPosForTime(CCArray* speedObjects, gd::Speed speed, float time) {
-    float x;
-    __asm movss xmm0, time;
-    reinterpret_cast<void(__fastcall*)(CCArray*, gd::Speed)>(gd::base + 0x18acd0)(speedObjects, speed);
-    __asm movss x, xmm0;
-    return x;
+matdash::cc::thiscall<void> DrawGridLayer_loadTimeMarkers(gd::DrawGridLayer* self, std::string guidelines) {
+    matdash::orig<&DrawGridLayer_loadTimeMarkers>(self, guidelines);
+
+    auto speeds = self->m_pSpeedObjects2;
+    auto startSpeed = self->m_pEditor->m_pLevelSettings->m_speed;
+    auto songOffset = self->m_pEditor->m_pLevelSettings->m_songOffset;
+
+    for(size_t i = 0; i < samples.size(); i++)
+        samples[i].x = xPosForTime(speeds, startSpeed, i / sampleRate - songOffset);
+
+    return {};
 }
-float timeForXPos(CCArray* speedObjects, gd::Speed speed, float x) {
-    float time;
-    __asm movss xmm0, x;
-    reinterpret_cast<void(__fastcall*)(CCArray*, gd::Speed)>(gd::base + 0x18ae70)(speedObjects, speed);
-    __asm movss time, xmm0;
-    return time;
-}
+
 matdash::cc::thiscall<void> DrawGridLayer_draw(gd::DrawGridLayer* self) {
     matdash::orig<&DrawGridLayer_draw>(self);
 
@@ -160,24 +178,27 @@ matdash::cc::thiscall<void> DrawGridLayer_draw(gd::DrawGridLayer* self) {
     int lastPixels = 0;
     float lastX = 0.f;
     for(size_t i = startSample; i < endSample; i++) {
+        sample_t currentSample = samples[i];
         float x = xPosForTime(speeds, startSpeed, i / sampleRate - songOffset);
-        int pixels = static_cast<int>(std::floor(x * unitsToPixels / lineWidth));
-        if(std::abs(samples[i]) > std::abs(sample))
-            sample = samples[i];
+        int pixels = static_cast<int>(std::floor(currentSample.x * unitsToPixels / lineWidth));
+        if(std::abs(currentSample.value) > std::abs(sample))
+            sample = currentSample.value;
         if(pixels == lastPixels)
             continue;
 
         ccDrawLine(CCPoint{lastX, -sample * verticalScale + drawPos}, CCPoint{lastX, sample * verticalScale + drawPos});
         sample = 0.f;
         lastPixels = pixels;
-        lastX = std::floor(x * unitsToPixels) / unitsToPixels;
+        lastX = std::floor(currentSample.x * unitsToPixels) / unitsToPixels;
     }
     glLineWidth(prevLineWidth);
+
     return {};
 }
 
 void waveform::addHooks() {
     matdash::add_hook<&LevelEditorLayer_init>(gd::base + 0x15ee00);
+    matdash::add_hook<&DrawGridLayer_loadTimeMarkers>(gd::base + 0x16cab0);
     matdash::add_hook<&DrawGridLayer_draw>(gd::base + 0x16ce90);
 }
 
