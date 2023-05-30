@@ -24,7 +24,7 @@ namespace waveform::config {
     std::filesystem::path getConfigPath() {
         auto configDir = std::filesystem::path(cocos2d::CCFileUtils::sharedFileUtils()->getWritablePath2()) / "config";
         std::filesystem::create_directories(configDir);
-        return configDir / "waveform.txt";
+        return configDir / "EditorWaveform.txt";
     }
     void loadConfig() {
         auto configPath = getConfigPath();
