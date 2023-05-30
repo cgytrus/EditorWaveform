@@ -11,7 +11,7 @@ namespace waveform {
 namespace waveform::config {
     static bool enabled = true;
     static bool lockToCamera = true;
-    static float verticalOffset = 900.f;
+    static float verticalOffset = 270.f;
     static float verticalScale = 90.f;
     static int lineWidth = 4;
     static uint8_t opacity = 190;

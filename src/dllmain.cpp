@@ -136,7 +136,7 @@ matdash::cc::thiscall<void> DrawGridLayer_draw(gd::DrawGridLayer* self) {
     float rightBound = std::ceil((leftBound + localWinWidth) * unitsToPixels / lineWidth + 3.f) * lineWidth / unitsToPixels;
 
     if(waveform::config::lockToCamera)
-        position = pos.y;
+        position = pos.y - offset + offset / self->getParent()->getScaleY();
     float drawPos = position + offset;
 
     float startTime = timeForXPos(self->m_pSpeedObjects2, self->m_pEditor->m_pLevelSettings->m_speed, leftBound);
