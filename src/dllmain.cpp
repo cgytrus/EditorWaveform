@@ -21,6 +21,7 @@
 using namespace cocos2d;
 
 static std::vector<float> samples;
+static float sampleRate = 0.f;
 static float position = 0.f;
 
 matdash::cc::thiscall<bool> LevelEditorLayer_init(gd::LevelEditorLayer* self, gd::GJGameLevel* level) {
@@ -33,6 +34,7 @@ matdash::cc::thiscall<bool> LevelEditorLayer_init(gd::LevelEditorLayer* self, gd
     FMOD::Sound* sound;
     const FMOD_MODE mode = FMOD_DEFAULT | FMOD_CREATESAMPLE | FMOD_OPENONLY;
     gd::FMODAudioEngine::sharedEngine()->m_pSystem->createSound(songPath.c_str(), mode, nullptr, &sound);
+    gd::FMODAudioEngine::sharedEngine()->m_pGlobalChannel->getFrequency(&sampleRate);
 
     FMOD_SOUND_FORMAT format;
     int channels;
@@ -139,10 +141,15 @@ matdash::cc::thiscall<void> DrawGridLayer_draw(gd::DrawGridLayer* self) {
         position = pos.y - offset + offset / self->getParent()->getScaleY();
     float drawPos = position + offset;
 
-    float startTime = timeForXPos(self->m_pSpeedObjects2, self->m_pEditor->m_pLevelSettings->m_speed, leftBound);
-    float endTime = timeForXPos(self->m_pSpeedObjects2, self->m_pEditor->m_pLevelSettings->m_speed, rightBound);
-    size_t startSample = std::clamp(static_cast<size_t>(startTime * 44100.f), 0u, samples.size());
-    size_t endSample = std::clamp(static_cast<size_t>(endTime * 44100.f), 0u, samples.size());
+    auto speeds = self->m_pSpeedObjects2;
+    auto startSpeed = self->m_pEditor->m_pLevelSettings->m_speed;
+    auto songOffset = self->m_pEditor->m_pLevelSettings->m_songOffset;
+
+    float startTime = timeForXPos(speeds, startSpeed, leftBound) + songOffset;
+    float endTime = timeForXPos(speeds, startSpeed, rightBound) + songOffset;
+
+    size_t startSample = std::clamp(static_cast<size_t>(startTime * sampleRate), 0u, samples.size());
+    size_t endSample = std::clamp(static_cast<size_t>(endTime * sampleRate), 0u, samples.size());
 
     float prevLineWidth;
     glGetFloatv(GL_LINE_WIDTH, &prevLineWidth);
@@ -153,7 +160,7 @@ matdash::cc::thiscall<void> DrawGridLayer_draw(gd::DrawGridLayer* self) {
     int lastPixels = 0;
     float lastX = 0.f;
     for(size_t i = startSample; i < endSample; i++) {
-        float x = xPosForTime(self->m_pSpeedObjects2, self->m_pEditor->m_pLevelSettings->m_speed, i / 44100.f);
+        float x = xPosForTime(speeds, startSpeed, i / sampleRate);
         int pixels = static_cast<int>(std::floor(x * unitsToPixels / lineWidth));
         if(std::abs(samples[i]) > std::abs(sample))
             sample = samples[i];
