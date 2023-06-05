@@ -50,10 +50,11 @@ matdash::cc::thiscall<bool> LevelEditorLayer_init(gd::LevelEditorLayer* self, gd
 
     position = 0.f;
 
+    auto engine = gd::FMODAudioEngine::sharedEngine();
+
     FMOD::Sound* sound;
     const FMOD_MODE mode = FMOD_DEFAULT | FMOD_CREATESAMPLE | FMOD_OPENONLY;
-    gd::FMODAudioEngine::sharedEngine()->m_pSystem->createSound(songPath.c_str(), mode, nullptr, &sound);
-    gd::FMODAudioEngine::sharedEngine()->m_pGlobalChannel->getFrequency(&sampleRate);
+    engine->m_pSystem->createSound(songPath.c_str(), mode, nullptr, &sound);
 
     FMOD_SOUND_FORMAT format;
     int channels;
@@ -75,6 +76,12 @@ matdash::cc::thiscall<bool> LevelEditorLayer_init(gd::LevelEditorLayer* self, gd
     unsigned int bytesPerSample = length / sampleCount;
     int8_t* data = new int8_t[length];
     sound->readData(data, length, &length);
+
+    FMOD::ChannelGroup* channelGroup;
+    engine->m_pGlobalChannel->getChannelGroup(&channelGroup);
+    engine->m_pSystem->playSound(sound, channelGroup, true, &engine->m_pGlobalChannel);
+    engine->m_pGlobalChannel->getFrequency(&sampleRate);
+
     sound->release();
     sound = nullptr;
 
