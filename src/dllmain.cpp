@@ -139,6 +139,7 @@ matdash::cc::thiscall<void> DrawGridLayer_loadTimeMarkers(gd::DrawGridLayer* sel
     return {};
 }
 
+static std::vector<CCPoint> lines;
 matdash::cc::thiscall<void> DrawGridLayer_draw(gd::DrawGridLayer* self) {
     matdash::orig<&DrawGridLayer_draw>(self);
 
@@ -169,14 +170,10 @@ matdash::cc::thiscall<void> DrawGridLayer_draw(gd::DrawGridLayer* self) {
     size_t startSample = std::clamp(static_cast<size_t>(startTime * sampleRate), 0u, samples.size());
     size_t endSample = std::clamp(static_cast<size_t>(endTime * sampleRate), 0u, samples.size());
 
-    float prevLineWidth;
-    glGetFloatv(GL_LINE_WIDTH, &prevLineWidth);
-
-    ccDrawColor4B(31, 31, 31, waveform::config::opacity);
-    glLineWidth(lineWidth);
     float sample = 0.f;
     int lastPixels = 0;
     float lastX = 0.f;
+    lines.clear();
     for(size_t i = startSample; i < endSample; i++) {
         sample_t currentSample = samples[i];
         int pixels = static_cast<int>(std::floor(currentSample.x * unitsToPixels / lineWidth));
@@ -185,11 +182,19 @@ matdash::cc::thiscall<void> DrawGridLayer_draw(gd::DrawGridLayer* self) {
         if(pixels == lastPixels)
             continue;
 
-        ccDrawLine(CCPoint{lastX, -sample * verticalScale + drawPos}, CCPoint{lastX, sample * verticalScale + drawPos});
+        lines.push_back(CCPoint{lastX, -sample * verticalScale + drawPos});
+        lines.push_back(CCPoint{lastX, sample * verticalScale + drawPos});
+
         sample = 0.f;
         lastPixels = pixels;
         lastX = std::floor(currentSample.x * unitsToPixels) / unitsToPixels;
     }
+
+    ccDrawColor4B(31, 31, 31, waveform::config::opacity);
+    float prevLineWidth;
+    glGetFloatv(GL_LINE_WIDTH, &prevLineWidth);
+    glLineWidth(lineWidth);
+    ccDrawLines(lines.data(), lines.size());
     glLineWidth(prevLineWidth);
 
     return {};
